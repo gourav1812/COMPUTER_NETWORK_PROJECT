@@ -1,4 +1,4 @@
-"""Adaptive retransmission timeout.  OWNER: Chirag  (core — implement yourselves)
+"""Adaptive retransmission timeout.  OWNER: Chirag  
 
 Jacobson/Karels: SRTT, RTTVAR, RTO = SRTT + 4*RTTVAR, clamped; exponential backoff on timeout.
 Karn: callers must NOT call sample() for packets that were retransmitted.
