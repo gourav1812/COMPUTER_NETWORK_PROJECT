@@ -120,3 +120,29 @@ class SelectiveRepeatReceiver(BaseReceiver):
                     while rcv_base in buffer:
                         chunks.append(buffer.pop(rcv_base))
                         rcv_base += 1
+                # Old packet [rcv_base - window, rcv_base - 1] whose ACK was lost
+                elif (rcv_base - window) <= seq < rcv_base:
+                    self.stats.duplicates_dropped += 1
+                    ack_pkt = Packet(seq=0, ack=seq, ptype=ACK)
+                    self.sock.sendto(encode(ack_pkt), addr)
+                else:
+                    self.stats.duplicates_dropped += 1
+            elif pkt.ptype == FIN:
+                fin_ack = Packet(seq=0, ack=pkt.seq, ptype=FIN_ACK)
+                self.sock.sendto(encode(fin_ack), addr)
+                self.sock.settimeout(0.4)
+                linger_until = time.monotonic() + 1.0
+                while time.monotonic() < linger_until:
+                    try:
+                        extra_raw, extra_addr = self.sock.recvfrom(4096)
+                        try:
+                            extra_pkt = decode(extra_raw)
+                            if extra_pkt.ptype == FIN:
+                                self.sock.sendto(encode(fin_ack), extra_addr)
+                        except CorruptPacket:
+                            pass
+                    except socket.timeout:
+                        break
+                break
+
+        return chunks, sender_addr
