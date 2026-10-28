@@ -39,11 +39,13 @@ class StopAndWaitSender(BaseSender):
                                 rtt = time.monotonic() - start_time
                                 self.stats.rtt_samples.append(rtt)
                                 self.rto.sample(rtt)
+                            elif self.rto and hasattr(self.rto, "reset_backoff"):
+                                self.rto.reset_backoff()
                             i += 1
                             break
                     except CorruptPacket:
                         self.stats.corrupt_dropped += 1
-                except socket.timeout:
+                except (socket.timeout, ConnectionResetError, OSError):
                     if self.rto:
                         self.rto.backoff()
 
@@ -59,7 +61,7 @@ class StopAndWaitSender(BaseSender):
                 resp = decode(resp_raw)
                 if resp.ptype == FIN_ACK:
                     break
-            except (socket.timeout, CorruptPacket):
+            except (socket.timeout, CorruptPacket, ConnectionResetError, OSError):
                 pass
 
 
@@ -70,7 +72,10 @@ class StopAndWaitReceiver(BaseReceiver):
         sender_addr = None
 
         while True:
-            raw, addr = self.sock.recvfrom(4096)
+            try:
+                raw, addr = self.sock.recvfrom(4096)
+            except (socket.timeout, ConnectionResetError, OSError):
+                continue
             sender_addr = addr
             try:
                 pkt = decode(raw)
@@ -104,7 +109,7 @@ class StopAndWaitReceiver(BaseReceiver):
                                 self.sock.sendto(encode(fin_ack), extra_addr)
                         except CorruptPacket:
                             pass
-                    except socket.timeout:
+                    except (socket.timeout, ConnectionResetError, OSError):
                         break
                 break
 
